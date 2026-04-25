@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Quiz Royale</title>
+
+  <!-- Telegram Web App SDK (required) -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    :root {
+      --bg:       #0f0f0f;
+      --surface:  #1a1a1a;
+      --border:   #2a2a2a;
+      --accent:   #6c63ff;
+      --accent2:  #ff6584;
+      --text:     #ffffff;
+      --subtext:  #888888;
+      --success:  #00c896;
+      --error:    #ff4d6d;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    /* ── Screens ── */
+    .screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 100vh;
+      padding: 24px;
+      text-align: center;
+    }
+    .screen.active { display: flex; }
+
+    /* ── Loading screen ── */
+    #screen-loading .logo {
+      font-size: 64px;
+      margin-bottom: 16px;
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    #screen-loading h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+    #screen-loading p {
+      color: var(--subtext);
+      font-size: 14px;
+    }
+    .loader {
+      width: 40px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin-top: 32px;
+      overflow: hidden;
+    }
+    .loader-bar {
+      height: 100%;
+      width: 40%;
+      background: var(--accent);
+      border-radius: 2px;
+      animation: slide 1s ease-in-out infinite;
+    }
+
+    /* ── Home screen ── */
+    #screen-home .avatar {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      margin-bottom: 16px;
+    }
+    #screen-home h2 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    #screen-home .subtitle {
+      color: var(--subtext);
+      font-size: 14px;
+      margin-bottom: 32px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 20px;
+      width: 100%;
+      max-width: 360px;
+      margin-bottom: 12px;
+    }
+
+    .btn {
+      width: 100%;
+      max-width: 360px;
+      padding: 16px;
+      border-radius: 14px;
+      border: none;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:active { opacity: 0.85; transform: scale(0.98); }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      margin-top: 8px;
+    }
+
+    /* ── Language toggle ── */
+    .lang-toggle {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      display: flex;
+      gap: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 4px;
+      z-index: 100;
+    }
+    .lang-btn {
+      padding: 4px 12px;
+      border-radius: 16px;
+      border: none;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      background: transparent;
+      color: var(--subtext);
+      transition: all 0.15s;
+    }
+    .lang-btn.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    /* ── Stats row ── */
+    .stats-row {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+      max-width: 360px;
+      margin-bottom: 20px;
+    }
+    .stat-box {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 8px;
+      text-align: center;
+    }
+    .stat-box .stat-val {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .stat-box .stat-label {
+      font-size: 11px;
+      color: var(--subtext);
+      margin-top: 2px;
+    }
+
+    /* ── Error screen ── */
+    #screen-error h2 { font-size: 20px; margin-bottom: 8px; }
+    #screen-error p  { color: var(--subtext); font-size: 14px; }
+
+    /* ── Animations ── */
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50%       { transform: scale(1.08); }
+    }
+    @keyframes slide {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(350%); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Language toggle (visible on all screens except loading) -->
+  <div class="lang-toggle" id="lang-toggle" style="display:none">
+    <button class="lang-btn" id="btn-en" onclick="setLang('en')">EN</button>
+    <button class="lang-btn" id="btn-es" onclick="setLang('es')">ES</button>
+  </div>
+
+  <!-- ── Screen: Loading ── -->
+  <div class="screen active" id="screen-loading">
+    <div class="logo">🎮</div>
+    <h1>Quiz Royale</h1>
+    <p id="loading-text">Loading...</p>
+    <div class="loader"><div class="loader-bar"></div></div>
+  </div>
+
+  <!-- ── Screen: Home ── -->
+  <div class="screen" id="screen-home">
+    <div class="avatar" id="home-avatar">👤</div>
+    <h2 id="home-username">Player</h2>
+    <p class="subtitle" id="home-subtitle">Ready to play?</p>
+
+    <div class="stats-row">
+      <div class="stat-box">
+        <div class="stat-val" id="stat-sessions">0</div>
+        <div class="stat-label" id="label-sessions">Sessions</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="stat-coins">0</div>
+        <div class="stat-label" id="label-coins">Coins</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-val" id="stat-correct">0%</div>
+        <div class="stat-label" id="label-correct">Correct</div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="btn-play" onclick="startQuiz()"></button>
+    <button class="btn btn-secondary" id="btn-leaderboard" onclick="showLeaderboard()"></button>
+  </div>
+
+  <!-- ── Screen: Error ── -->
+  <div class="screen" id="screen-error">
+    <div style="font-size:48px;margin-bottom:16px">⚠️</div>
+    <h2 id="error-title">Something went wrong</h2>
+    <p id="error-msg">Please close and reopen the app.</p>
+  </div>
+
+  <!-- ── Firebase SDK ── -->
+  <script type="module">
+    import { initializeApp }                          from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
+
+    // ── Config ────────────────────────────────────────────
+    const firebaseConfig = {
+      apiKey:            "AIzaSyBUXCSTtDzMOCrsImChFrRlgRhaTX_kFZk",
+      authDomain:        "quiz-royale-a7a5d.firebaseapp.com",
+      projectId:         "quiz-royale-a7a5d",
+      storageBucket:     "quiz-royale-a7a5d.firebasestorage.app",
+      messagingSenderId: "364665068314",
+      appId:             "1:364665068314:web:8913b5c4dab903e3abeaa3",
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
+
+    // ── i18n strings ──────────────────────────────────────
+    const STRINGS = {
+      en: {
+        loading:      "Loading...",
+        ready:        "Ready to play?",
+        play:         "🎮  Play Now",
+        leaderboard:  "🏆  Leaderboard",
+        sessions:     "Sessions",
+        coins:        "Coins",
+        correct:      "Correct",
+        error:        "Something went wrong",
+        errorMsg:     "Please close and reopen the app.",
+        welcome:      "Welcome back",
+      },
+      es: {
+        loading:      "Cargando...",
+        ready:        "¿Listo para jugar?",
+        play:         "🎮  Jugar ahora",
+        leaderboard:  "🏆  Clasificación",
+        sessions:     "Sesiones",
+        coins:        "Monedas",
+        correct:      "Aciertos",
+        error:        "Algo salió mal",
+        errorMsg:     "Cierra y vuelve a abrir la app.",
+        welcome:      "Bienvenido de nuevo",
+      },
+    };
+
+    // ── State ─────────────────────────────────────────────
+    let currentLang = "en";
+    let currentUser = null;
+
+    // ── Language ──────────────────────────────────────────
+    window.setLang = function(lang) {
+      currentLang = lang;
+      document.getElementById("btn-en").classList.toggle("active", lang === "en");
+      document.getElementById("btn-es").classList.toggle("active", lang === "es");
+      applyStrings();
+      if (currentUser) saveUserLang(lang);
+    };
+
+    function applyStrings() {
+      const s = STRINGS[currentLang];
+      document.getElementById("loading-text").textContent   = s.loading;
+      document.getElementById("home-subtitle").textContent  = s.ready;
+      document.getElementById("btn-play").textContent       = s.play;
+      document.getElementById("btn-leaderboard").textContent= s.leaderboard;
+      document.getElementById("label-sessions").textContent = s.sessions;
+      document.getElementById("label-coins").textContent    = s.coins;
+      document.getElementById("label-correct").textContent  = s.correct;
+      document.getElementById("error-title").textContent    = s.error;
+      document.getElementById("error-msg").textContent      = s.errorMsg;
+    }
+
+    async function saveUserLang(lang) {
+      try {
+        const ref = doc(db, "users", String(currentUser.id));
+        await setDoc(ref, { lang }, { merge: true });
+      } catch(e) { console.warn("Could not save lang", e); }
+    }
+
+    // ── Screen switcher ───────────────────────────────────
+    function showScreen(id) {
+      document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+      document.getElementById("screen-" + id).classList.add("active");
+      document.getElementById("lang-toggle").style.display = id === "loading" ? "none" : "flex";
+    }
+
+    // ── Init ──────────────────────────────────────────────
+    async function init() {
+      // 1. Expand Telegram Web App
+      window.Telegram.WebApp.expand();
+      window.Telegram.WebApp.ready();
+
+      // 2. Get Telegram user
+      const tgUser = window.Telegram.WebApp.initDataUnsafe?.user;
+
+      // For local testing without Telegram, use a mock user
+      const user = tgUser || { id: 999999, first_name: "Test", language_code: "en" };
+      currentUser = user;
+
+      // 3. Detect language
+      const detectedLang = (user.language_code || "en").startsWith("es") ? "es" : "en";
+
+      // 4. Load or create user in Firestore
+      try {
+        const userRef  = doc(db, "users", String(user.id));
+        const userSnap = await getDoc(userRef);
+
+        if (userSnap.exists()) {
+          // Returning user — use their saved language preference
+          const data = userSnap.data();
+          currentLang = data.lang || detectedLang;
+        } else {
+          // New user — create their document
+          currentLang = detectedLang;
+          await setDoc(userRef, {
+            telegramId:    String(user.id),
+            username:      user.first_name || "Player",
+            lang:          currentLang,
+            role:          "player",
+            coins:         0,
+            xp:            0,
+            totalSessions: 0,
+            totalCorrect:  0,
+            createdAt:     serverTimestamp(),
+            lastActiveAt:  serverTimestamp(),
+          });
+        }
+
+        // 5. Update stats display
+        const data = userSnap.exists() ? userSnap.data() : { coins: 0, totalSessions: 0, totalCorrect: 0 };
+        document.getElementById("home-username").textContent = user.first_name || "Player";
+        document.getElementById("stat-sessions").textContent = data.totalSessions || 0;
+        document.getElementById("stat-coins").textContent    = data.coins || 0;
+
+        const pct = data.totalSessions > 0
+          ? Math.round((data.totalCorrect / (data.totalSessions * 8)) * 100) + "%"
+          : "0%";
+        document.getElementById("stat-correct").textContent = pct;
+
+        // 6. Apply language and show home
+        setLang(currentLang);
+        showScreen("home");
+
+      } catch (err) {
+        console.error("Init error:", err);
+        showScreen("error");
+      }
+    }
+
+    // ── Placeholder nav functions (built in next steps) ───
+    window.startQuiz       = () => alert("Quiz coming in Step 4!");
+    window.showLeaderboard = () => alert("Leaderboard coming in Step 5!");
+
+    // ── Boot ──────────────────────────────────────────────
+    init();
+  </script>
+
+</body>
+</html>
